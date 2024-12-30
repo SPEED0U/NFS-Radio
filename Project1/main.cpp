@@ -234,7 +234,7 @@ DWORD WINAPI KeyboardThread(LPVOID lpParam) {
 }
 // Thread d'initialisation
 DWORD WINAPI InitBassThread(LPVOID lpParam) {
-    while (TheGameFlowManager != 6)
+    while (TheGameFlowManager != 3)
     {
         Sleep(1000);
     }
