@@ -7,18 +7,18 @@
 #define START_OFFSET_DEFAULT 0x400000
 
 bool GetD3D9Device(void** pTable, size_t size) {
-    MessageBoxA(NULL, "Début GetD3D9Device", "Debug", MB_OK);
+    //MessageBoxA(NULL, "Début GetD3D9Device", "Debug", MB_OK);
 
     IDirect3D9* pD3D = Direct3DCreate9(D3D_SDK_VERSION);
     if (!pD3D) {
-        MessageBoxA(NULL, "Direct3DCreate9 a échoué", "Debug", MB_OK);
+        //MessageBoxA(NULL, "Direct3DCreate9 a échoué", "Debug", MB_OK);
         return false;
     }
 
     // Obtention de la fenêtre du jeu
     HWND hwnd = GetForegroundWindow();
     if (!hwnd) {
-        MessageBoxA(NULL, "GetForegroundWindow a échoué", "Debug", MB_OK);
+        //MessageBoxA(NULL, "GetForegroundWindow a échoué", "Debug", MB_OK);
         pD3D->Release();
         return false;
     }
@@ -28,7 +28,7 @@ bool GetD3D9Device(void** pTable, size_t size) {
     MONITORINFO info;
     info.cbSize = sizeof(MONITORINFO);
     if (!GetMonitorInfo(monitor, &info)) {
-        MessageBoxA(NULL, "GetMonitorInfo a échoué", "Debug", MB_OK);
+        //MessageBoxA(NULL, "GetMonitorInfo a échoué", "Debug", MB_OK);
         pD3D->Release();
         return false;
     }
@@ -72,20 +72,20 @@ bool GetD3D9Device(void** pTable, size_t size) {
         }
     }
 
-    MessageBoxA(NULL, "Device créé avec succès", "Debug", MB_OK);
+    //MessageBoxA(NULL, "Device créé avec succès", "Debug", MB_OK);
 
     void** vtable = *reinterpret_cast<void***>(pDevice);
     if (vtable) {
         memcpy(pTable, vtable, size);
         char msg[256];
-        sprintf_s(msg, "EndScene offset: 0x%p", vtable[42]);
-        MessageBoxA(NULL, msg, "Debug", MB_OK);
+        //sprintf_s(msg, "EndScene offset: 0x%p", vtable[42]);
+        //MessageBoxA(NULL, msg, "Debug", MB_OK);
     }
 
     pDevice->Release();
     pD3D->Release();
 
-    MessageBoxA(NULL, "GetD3D9Device terminé avec succès", "Debug", MB_OK);
+    //MessageBoxA(NULL, "GetD3D9Device terminé avec succès", "Debug", MB_OK);
     return true;
 }
 

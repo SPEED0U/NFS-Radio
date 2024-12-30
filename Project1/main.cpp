@@ -119,14 +119,14 @@ void ToggleRadio() {
             else {
                 int error = BASS_ErrorGetCode_Fn();
                 char msg[256];
-                sprintf_s(msg, "Erreur lecture: %d", error);
+                //sprintf_s(msg, "Erreur lecture: %d", error);
                 SetStatusMessage(msg);
             }
         }
         else {
             int error = BASS_ErrorGetCode_Fn();
             char msg[256];
-            sprintf_s(msg, "Erreur création stream: %d", error);
+            //sprintf_s(msg, "Erreur création stream: %d", error);
             SetStatusMessage(msg);
         }
     }
@@ -192,7 +192,7 @@ HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
         oWndProc = (WNDPROC)SetWindowLongPtr(gameWindow, GWLP_WNDPROC, (LONG_PTR)hkWndProc);
 
         init = true;
-        //MessageBoxA(nullptr, "ImGui initialisé", "Debug", MB_OK);
+        ////MessageBoxA(nullptr, "ImGui initialisé", "Debug", MB_OK);
     }
 
     ImGui_ImplDX9_NewFrame();
@@ -210,7 +210,7 @@ HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
 
 // Thread pour gérer les touches
 DWORD WINAPI KeyboardThread(LPVOID lpParam) {
-    MessageBoxA(nullptr, "Thread clavier démarré", "Debug", MB_OK);
+    //MessageBoxA(nullptr, "Thread clavier démarré", "Debug", MB_OK);
 
     while (true) {
         // Vérifier F7
@@ -218,13 +218,13 @@ DWORD WINAPI KeyboardThread(LPVOID lpParam) {
         if (f7State & 0x8000) {  // Si la touche est pressée
             g_showMenu = !g_showMenu;
             char msg[256];
-            sprintf_s(msg, "F7 pressé - Menu: %s", g_showMenu ? "activé" : "désactivé");
-            MessageBoxA(nullptr, msg, "Debug", MB_OK);
+            //sprintf_s(msg, "F7 pressé - Menu: %s", g_showMenu ? "activé" : "désactivé");
+            //MessageBoxA(nullptr, msg, "Debug", MB_OK);
         }
 
         // Vérifier F8
         if (GetAsyncKeyState(VK_F8) & 0x8000) {
-            MessageBoxA(nullptr, "F8 pressé", "Debug", MB_OK);
+            //MessageBoxA(nullptr, "F8 pressé", "Debug", MB_OK);
             ToggleRadio();
         }
 
@@ -249,10 +249,10 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
     sprintf_s(minhookPath, "%s\\MinHook.dll", asiPath);
     HMODULE hMinHook = LoadLibraryA(minhookPath);
     if (!hMinHook) {
-        MessageBoxA(nullptr, "Erreur chargement MinHook.DLL", "Error", MB_OK);
+        //MessageBoxA(nullptr, "Erreur chargement MinHook.DLL", "Error", MB_OK);
         return FALSE;
     }
-    MessageBoxA(nullptr, "MinHook.DLL chargé", "Debug", MB_OK);
+    //MessageBoxA(nullptr, "MinHook.DLL chargé", "Debug", MB_OK);
 
     // Charger les fonctions MinHook
     MH_Initialize_Fn = (MH_Initialize_PTR)GetProcAddress(hMinHook, "MH_Initialize");
@@ -262,28 +262,28 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
     MH_Uninitialize_Fn = (MH_Uninitialize_PTR)GetProcAddress(hMinHook, "MH_Uninitialize");
 
     if (!MH_Initialize_Fn || !MH_CreateHook_Fn || !MH_EnableHook_Fn || !MH_DisableHook_Fn || !MH_Uninitialize_Fn) {
-        MessageBoxA(nullptr, "Erreur chargement fonctions MinHook", "Error", MB_OK);
+        //MessageBoxA(nullptr, "Erreur chargement fonctions MinHook", "Error", MB_OK);
         return FALSE;
     }
 
     // Initialiser MinHook avant toute autre chose
     if (MH_Initialize_Fn() != MH_OK) {
-        MessageBoxA(nullptr, "Erreur MH_Initialize", "Error", MB_OK);
+        //MessageBoxA(nullptr, "Erreur MH_Initialize", "Error", MB_OK);
         return FALSE;
     }
-    MessageBoxA(nullptr, "MinHook initialisé", "Debug", MB_OK);
+    //MessageBoxA(nullptr, "MinHook initialisé", "Debug", MB_OK);
 
     // Hook D3D9 EndScene
     void* d3d9Device[119];
     memset(d3d9Device, 0, sizeof(d3d9Device));
 
-    MessageBoxA(nullptr, "Attente avant récupération du D3D9Device...", "Debug", MB_OK);
+    //MessageBoxA(nullptr, "Attente avant récupération du D3D9Device...", "Debug", MB_OK);
     Sleep(5000); // Attendre 5 secondes
     for (int attempt = 0; attempt < 3; attempt++) {
         if (!GetD3D9Device(d3d9Device, sizeof(d3d9Device))) {
             char msg[256];
-            sprintf_s(msg, "Tentative %d : Échec de GetD3D9Device", attempt + 1);
-            MessageBoxA(nullptr, msg, "Debug", MB_OK);
+            //sprintf_s(msg, "Tentative %d : Échec de GetD3D9Device", attempt + 1);
+            //MessageBoxA(nullptr, msg, "Debug", MB_OK);
             Sleep(2000); // Attendre 2 secondes entre les tentatives
             continue;
         }
@@ -291,10 +291,10 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
         void* endSceneAddr = d3d9Device[42];
         char addressMsg[256];
         sprintf_s(addressMsg, "Tentative %d : Adresse EndScene: %p", attempt + 1, endSceneAddr);
-        MessageBoxA(nullptr, addressMsg, "Debug", MB_OK);
+        //MessageBoxA(nullptr, addressMsg, "Debug", MB_OK);
 
         if (endSceneAddr == NULL) {
-            MessageBoxA(nullptr, "Adresse EndScene est NULL", "Error", MB_OK);
+            //MessageBoxA(nullptr, "Adresse EndScene est NULL", "Error", MB_OK);
             continue;
         }
 
@@ -302,7 +302,7 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
         if (!VirtualProtect(endSceneAddr, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
             char errorMsg[256];
             sprintf_s(errorMsg, "Erreur VirtualProtect: %d", GetLastError());
-            MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
+            //MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
             continue;
         }
 
@@ -312,7 +312,7 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
         if (status != MH_OK) {
             char errorMsg[256];
             sprintf_s(errorMsg, "Tentative %d : Erreur création hook: %d", attempt + 1, status);
-            MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
+            //MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
             VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
             continue;
         }
@@ -321,13 +321,13 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
         if (status != MH_OK) {
             char errorMsg[256];
             sprintf_s(errorMsg, "Tentative %d : Erreur EnableHook: %d", attempt + 1, status);
-            MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
+            //MessageBoxA(nullptr, errorMsg, "Error", MB_OK);
             VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
             continue;
         }
 
         VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
-        MessageBoxA(nullptr, "Hook activé avec succès!", "Success", MB_OK);
+        //MessageBoxA(nullptr, "Hook activé avec succès!", "Success", MB_OK);
 
         // Charger BASS après que les hooks sont en place
         char bassPath[MAX_PATH];
@@ -335,10 +335,10 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
 
         g_hBassDll = LoadLibraryA(bassPath);
         if (!g_hBassDll) {
-            MessageBoxA(nullptr, "Erreur chargement BASS.DLL", "Error", MB_OK);
+            //MessageBoxA(nullptr, "Erreur chargement BASS.DLL", "Error", MB_OK);
             return FALSE;
         }
-        MessageBoxA(nullptr, "BASS.DLL chargé", "Debug", MB_OK);
+        //MessageBoxA(nullptr, "BASS.DLL chargé", "Debug", MB_OK);
         // Charger les fonctions BASS
         BASS_Init_Fn = (BASS_Init_PTR)GetProcAddress(g_hBassDll, "BASS_Init");
         BASS_Free_Fn = (BASS_Free_PTR)GetProcAddress(g_hBassDll, "BASS_Free");
@@ -351,29 +351,29 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
 
         if (!BASS_Init_Fn || !BASS_Free_Fn || !BASS_ErrorGetCode_Fn || !BASS_StreamCreateURL_Fn ||
             !BASS_ChannelPlay_Fn || !BASS_ChannelStop_Fn || !BASS_ChannelSetAttribute_Fn || !BASS_StreamFree_Fn) {
-            MessageBoxA(nullptr, "Erreur chargement fonctions BASS", "Error", MB_OK);
+            //MessageBoxA(nullptr, "Erreur chargement fonctions BASS", "Error", MB_OK);
             return FALSE;
         }
-        MessageBoxA(nullptr, "Fonctions BASS chargées", "Debug", MB_OK);
+        //MessageBoxA(nullptr, "Fonctions BASS chargées", "Debug", MB_OK);
 
         // Initialiser BASS
         if (!BASS_Init_Fn(-1, 44100, 0, GetForegroundWindow(), NULL)) {
             int error = BASS_ErrorGetCode_Fn();
             char msg[256];
-            sprintf_s(msg, "Erreur BASS_Init: %d", error);
-            MessageBoxA(nullptr, msg, "Error", MB_OK);
+            //sprintf_s(msg, "Erreur BASS_Init: %d", error);
+            //MessageBoxA(nullptr, msg, "Error", MB_OK);
             return FALSE;
         }
-        MessageBoxA(nullptr, "BASS initialisé", "Debug", MB_OK);
+        //MessageBoxA(nullptr, "BASS initialisé", "Debug", MB_OK);
 
         // Créer le thread du clavier
         CreateThread(NULL, 0, KeyboardThread, NULL, 0, NULL);
-        MessageBoxA(nullptr, "Thread clavier créé\nF7: Menu\nF8: Play/Stop", "Info", MB_OK);
+        //MessageBoxA(nullptr, "Thread clavier créé\nF7: Menu\nF8: Play/Stop", "Info", MB_OK);
 
         return TRUE;
     }
 
-    MessageBoxA(nullptr, "Échec après 3 tentatives", "Error", MB_OK);
+    //MessageBoxA(nullptr, "Échec après 3 tentatives", "Error", MB_OK);
     MH_Uninitialize_Fn();
     return FALSE;
 }
@@ -405,7 +405,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
         }
         else
         {
-            MessageBoxA(NULL, "This .exe is not supported.\nPlease use v1.9.3 nfsw.exe (10,9 MB (11.452.160 bytes)).", "WorldWhineGen", MB_ICONERROR);
+            //MessageBoxA(NULL, "This .exe is not supported.\nPlease use v1.9.3 nfsw.exe (10,9 MB (11.452.160 bytes)).", "WorldWhineGen", MB_ICONERROR);
             return FALSE;
         }
     }

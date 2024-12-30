@@ -56,3 +56,5 @@ Project1/Release/Project1.tlog/link.secondary.1.tlog
 Project1/Release/Project1.tlog/link.write.1.tlog
 Project1/Release/vc143.pdb
 *.vsidx
+/Project1/Release
+/.vs
