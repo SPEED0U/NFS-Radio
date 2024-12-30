@@ -50,5 +50,8 @@
     <ClInclude Include="utils.h">
       <Filter>Fichiers sources</Filter>
     </ClInclude>
+    <ClInclude Include="GlobalVariables.h">
+      <Filter>Fichiers sources</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

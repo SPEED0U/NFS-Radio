@@ -6,8 +6,9 @@
   imgui_tables.cpp
   imgui_widgets.cpp
   main.cpp
-  Génération de code en cours
-  Previous IPDB not found, fall back to full compilation.
-  All 1768 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
-  Fin de la génération du code
-  Project1.vcxproj -> C:\Users\iamsp\source\repos\Project1\Release\Project1.dll
+C:\EXCUSE_ME\GAMES\worldNFSRADIO\Project1\main.cpp(389,15): warning C4244: 'argument': conversion from 'double' to 'DWORD', possible loss of data
+  Generating code
+  Previous IPDB was built with incompatible compiler, fall back to full compilation.
+  All 1769 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  Project1.vcxproj -> C:\EXCUSE_ME\GAMES\worldNFSRADIO\Release\Project1.dll

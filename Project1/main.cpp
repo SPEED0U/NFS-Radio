@@ -1,5 +1,6 @@
 #include "framework.h"
 #include "utils.h"
+#include "GlobalVariables.h"
 #include <Shlwapi.h>
 #pragma comment(lib, "Shlwapi.lib")
 
@@ -233,7 +234,10 @@ DWORD WINAPI KeyboardThread(LPVOID lpParam) {
 }
 // Thread d'initialisation
 DWORD WINAPI InitBassThread(LPVOID lpParam) {
-    Sleep(1000);
+    while (TheGameFlowManager != 6)
+    {
+        Sleep(1000);
+    }
 
     // Obtenir le chemin de notre DLL
     char asiPath[MAX_PATH];
@@ -374,12 +378,36 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
     return FALSE;
 }
 
+void Update(LPVOID)
+{
+    while (true)
+    {
+        IsOnFocus = (*(bool*)(gBase + _HasFocus));
+        InGarage = (*(bool*)(gBase + _InGarage));
+        IsLoading = (*(bool*)(gBase + _LoadState));
+        TheGameFlowManager = (*(int*)(gBase + _GameState));
+        Sleep(16.6666);
+    }
+}
+
 // Point d'entrée DLL
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
     switch (reason) {
     case DLL_PROCESS_ATTACH: {
-        CreateThread(NULL, 0, InitBassThread, hModule, 0, NULL);
-        break;
+        gBase = (uintptr_t)GetModuleHandleA(NULL);
+        IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)(gBase);
+        IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)(gBase + dos->e_lfanew);
+        if ((gBase + nt->OptionalHeader.AddressOfEntryPoint + (0x400000 - gBase)) == 0x97CEFC) // Check if .exe file is compatible
+        {
+            CreateThread(NULL, 0, InitBassThread, hModule, 0, NULL);
+            CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&Update, NULL, 0, NULL);
+            break;
+        }
+        else
+        {
+            MessageBoxA(NULL, "This .exe is not supported.\nPlease use v1.9.3 nfsw.exe (10,9 MB (11.452.160 bytes)).", "WorldWhineGen", MB_ICONERROR);
+            return FALSE;
+        }
     }
     case DLL_PROCESS_DETACH: {
         if (g_radioStream && BASS_ChannelStop_Fn) {
