@@ -25,7 +25,11 @@ typedef DWORD HSTREAM;
 #define BASS_STREAM_STATUS 0x800000
 #define BASS_ATTRIB_VOL 2
 
-// Structure pour les stations radio
+// Game-specific memory addresses
+const uintptr_t WINDOW_HANDLE_ADDRESS = 0x906504;
+const uintptr_t D3D_DEVICE_ADDRESS = 0x9064A8;
+
+// Structure for radio stations
 struct RadioStation {
     std::string name;
     std::string url;
@@ -35,7 +39,7 @@ struct RadioStation {
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Variables globales pour la radio
+// Global variables for radio
 std::vector<RadioStation> g_radioStations = {
     {
         "NFS: Radio",
@@ -51,20 +55,15 @@ std::vector<RadioStation> g_radioStations = {
     }
 };
 
+// Global state variables
 RadioStation g_currentStation = g_radioStations[0];
 bool g_autoPlay = false;
 bool g_needCoverUpdate = false;
-
-// Variables pour la texture de la couverture
 LPDIRECT3DTEXTURE9 g_coverTexture = nullptr;
 int g_coverTextureWidth = 0;
 int g_coverTextureHeight = 0;
 std::string g_currentCoverUrl = "";
-
-// Hook de la fenêtre originale
 WNDPROC oWndProc = nullptr;
-
-// Variables globales
 bool g_showMenu = false;
 HSTREAM g_radioStream = 0;
 float g_volume = 1.0f;
@@ -74,31 +73,33 @@ float g_messageTimer = 0.0f;
 float g_titleDisplayTimer = 0.0f;
 std::string g_lastDisplayedSong = "";
 bool g_shouldDisplayTitle = false;
-float g_titleAlpha = 0.0f;          // Pour l'animation de transition
-float g_titleYOffset = -50.0f;      // Position Y pour l'animation
-const float FADE_IN_TIME = 0.5f;    // Durée de l'apparition en secondes
-const float FADE_OUT_TIME = 1.0f;   // Durée de la disparition en secondes
-const float DISPLAY_TIME = 15.0f;   // Temps total d'affichage
+float g_titleAlpha = 0.0f;
+float g_titleYOffset = -50.0f;
+const float FADE_IN_TIME = 0.5f;
+const float FADE_OUT_TIME = 1.0f;
+const float DISPLAY_TIME = 15.0f;
+UINT msg;
+WPARAM wParam;
+LPARAM lParam;
 
-// MinHook
+// MinHook definitions
 #define MH_OK 0
 #define MH_ALL_HOOKS (LPVOID)(-1)
 
-// Pointeurs de fonctions MinHook
+// Function pointers for MinHook
 typedef int (WINAPI* MH_Initialize_PTR)(void);
 typedef int (WINAPI* MH_CreateHook_PTR)(LPVOID pTarget, LPVOID pDetour, LPVOID* ppOriginal);
 typedef int (WINAPI* MH_EnableHook_PTR)(LPVOID pTarget);
 typedef int (WINAPI* MH_DisableHook_PTR)(LPVOID pTarget);
 typedef int (WINAPI* MH_Uninitialize_PTR)(void);
 
-// Variables globales MinHook
 MH_Initialize_PTR MH_Initialize_Fn = NULL;
 MH_CreateHook_PTR MH_CreateHook_Fn = NULL;
 MH_EnableHook_PTR MH_EnableHook_Fn = NULL;
 MH_DisableHook_PTR MH_DisableHook_Fn = NULL;
 MH_Uninitialize_PTR MH_Uninitialize_Fn = NULL;
 
-// BASS Audio Function Types
+// BASS function types
 typedef BOOL(WINAPI* BASS_Init_PTR)(int device, DWORD freq, DWORD flags, HWND win, const void* dsguid);
 typedef void (WINAPI* BASS_Free_PTR)(void);
 typedef int (WINAPI* BASS_ErrorGetCode_PTR)(void);
@@ -108,7 +109,7 @@ typedef BOOL(WINAPI* BASS_ChannelStop_PTR)(DWORD handle);
 typedef BOOL(WINAPI* BASS_ChannelSetAttribute_PTR)(DWORD handle, DWORD attrib, float value);
 typedef BOOL(WINAPI* BASS_StreamFree_PTR)(HSTREAM handle);
 
-// Variables globales BASS
+// BASS globals
 HMODULE g_hBassDll = NULL;
 BASS_Init_PTR BASS_Init_Fn = NULL;
 BASS_Free_PTR BASS_Free_Fn = NULL;
@@ -119,21 +120,30 @@ BASS_ChannelStop_PTR BASS_ChannelStop_Fn = NULL;
 BASS_ChannelSetAttribute_PTR BASS_ChannelSetAttribute_Fn = NULL;
 BASS_StreamFree_PTR BASS_StreamFree_Fn = NULL;
 
-
-// Hook pour EndScene
-typedef HRESULT(APIENTRY* EndScene)(LPDIRECT3DDEVICE9);
-EndScene oEndScene = nullptr;
-
-// Prototypes de fonctions
 void SetStatusMessage(const char* message);
 void SaveSettings();
 void LoadSettings();
 void UpdateRadioInfo();
 bool LoadCoverTexture(LPDIRECT3DDEVICE9 device, const std::string& url);
 void ToggleRadio();
+void RenderInterface();
 void RenderSongTitle();
+void Update();
+void ToggleRadio();
 
-// Implémentation des fonctions
+// EndScene hook
+typedef HRESULT(APIENTRY* EndScene)(LPDIRECT3DDEVICE9);
+EndScene oEndScene = nullptr;
+
+// Helper functions
+HWND GetGameWindow() {
+    return *(HWND*)(gBase + WINDOW_HANDLE_ADDRESS);
+}
+
+LPDIRECT3DDEVICE9 GetGameD3DDevice() {
+    return *(LPDIRECT3DDEVICE9*)(gBase + D3D_DEVICE_ADDRESS);
+}
+
 void SetStatusMessage(const char* message) {
     strcpy_s(g_statusMessage, message);
     g_messageTimer = 3.0f;
@@ -154,7 +164,6 @@ bool LoadCoverTexture(LPDIRECT3DDEVICE9 device, const std::string& url) {
 
     if (!hSession) return false;
 
-    // Convert URL to wide string for WinHTTP
     int wideLength = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, NULL, 0);
     std::vector<wchar_t> wideUrl(wideLength);
     MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, wideUrl.data(), wideLength);
@@ -206,7 +215,6 @@ bool LoadCoverTexture(LPDIRECT3DDEVICE9 device, const std::string& url) {
 
             if (dwSize > 0) {
                 std::vector<BYTE> buffer(dwSize);
-
                 if (WinHttpReadData(hRequest, buffer.data(),
                     dwSize, &dwDownloaded)) {
                     imageData.insert(imageData.end(),
@@ -215,7 +223,6 @@ bool LoadCoverTexture(LPDIRECT3DDEVICE9 device, const std::string& url) {
             }
         } while (dwSize > 0);
 
-        // Créer la texture
         if (!imageData.empty()) {
             D3DFORMAT format = D3DFMT_A8R8G8B8;
             UINT width = 256;
@@ -234,10 +241,9 @@ bool LoadCoverTexture(LPDIRECT3DDEVICE9 device, const std::string& url) {
             if (SUCCEEDED(hr)) {
                 D3DLOCKED_RECT lockedRect;
                 if (SUCCEEDED(g_coverTexture->LockRect(0, &lockedRect, NULL, 0))) {
-                    // Remplir la texture avec une couleur par défaut
                     DWORD* pixels = (DWORD*)lockedRect.pBits;
                     for (UINT i = 0; i < width * height; i++) {
-                        pixels[i] = 0xFF808080; // Gris
+                        pixels[i] = 0xFF808080;
                     }
 
                     g_coverTexture->UnlockRect(0);
@@ -265,7 +271,8 @@ void UpdateRadioInfo() {
     if (!hSession) return;
 
     HINTERNET hConnect = WinHttpConnect(hSession,
-        L"radio.nightriderz.world", INTERNET_DEFAULT_HTTPS_PORT, 0);
+        L"radio.nightriderz.world",
+        INTERNET_DEFAULT_HTTPS_PORT, 0);
 
     if (hConnect) {
         HINTERNET hRequest = WinHttpOpenRequest(hConnect,
@@ -291,18 +298,15 @@ void UpdateRadioInfo() {
 
                     if (dwSize > 0) {
                         pszOutBuffer = new char[dwSize + 1];
-
                         if (WinHttpReadData(hRequest, pszOutBuffer,
                             dwSize, &dwDownloaded)) {
                             pszOutBuffer[dwDownloaded] = '\0';
                             response += pszOutBuffer;
                         }
-
                         delete[] pszOutBuffer;
                     }
                 } while (dwSize > 0);
 
-                // Parser manuellement le JSON
                 size_t songPos = response.find("\"text\":\"");
                 size_t artPos = response.find("\"art\":\"");
 
@@ -317,13 +321,12 @@ void UpdateRadioInfo() {
                         std::string newSong = response.substr(songPos, songEnd - songPos);
                         std::string newCoverUrl = response.substr(artPos, artEnd - artPos);
 
-                        // Vérifier si le titre a changé
                         if (newSong != g_currentStation.currentSong) {
                             g_currentStation.currentSong = newSong;
                             g_shouldDisplayTitle = true;
-                            g_titleDisplayTimer = DISPLAY_TIME;  // DISPLAY_TIME au lieu de 15.0f
-                            g_titleAlpha = 0.0f;           // Démarrer avec une transparence totale
-                            g_titleYOffset = -50.0f;       // Démarrer hors écran
+                            g_titleDisplayTimer = DISPLAY_TIME;
+                            g_titleAlpha = 0.0f;
+                            g_titleYOffset = -50.0f;
                         }
 
                         if (newCoverUrl != g_currentStation.coverUrl) {
@@ -371,7 +374,7 @@ void LoadSettings() {
                 value++;
 
                 if (strcmp(line, "volume") == 0) {
-                    g_volume = static_cast<float>(atof(value)) / 100.0f; // Si la valeur est stockée en pourcentage
+                    g_volume = static_cast<float>(atof(value)) / 100.0f;
                 }
                 else if (strcmp(line, "autoplay") == 0) {
                     g_autoPlay = (atoi(value) == 1);
@@ -379,7 +382,6 @@ void LoadSettings() {
                 else if (strcmp(line, "station") == 0) {
                     char* newline = strchr(value, '\n');
                     if (newline) *newline = '\0';
-                    // Trouver la station correspondante
                     for (const auto& station : g_radioStations) {
                         if (station.url == value) {
                             g_currentStation = station;
@@ -440,7 +442,6 @@ void ToggleRadio() {
     }
 }
 
-// Notre gestionnaire de messages Windows
 LRESULT CALLBACK hkWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
         return true;
@@ -448,18 +449,17 @@ LRESULT CALLBACK hkWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);
 }
 
-// Fonction pour dessiner l'interface
 void RenderInterface() {
     if (!g_showMenu) return;
 
-    // Style du menu
+    // Style settings
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 4.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(12, 8));
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(6, 4));
 
-    // Couleurs du menu
+    // Colors
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.07f, 0.07f, 0.09f, 0.94f));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.4f, 0.4f, 0.4f, 0.50f));
     ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.12f, 0.12f, 0.15f, 0.94f));
@@ -471,19 +471,18 @@ void RenderInterface() {
     ImGui::PushStyleColor(ImGuiCol_FrameBgHovered, ImVec4(0.15f, 0.15f, 0.18f, 0.94f));
     ImGui::PushStyleColor(ImGuiCol_FrameBgActive, ImVec4(0.19f, 0.19f, 0.22f, 0.94f));
 
-    // Fenêtre principale
     ImGui::SetNextWindowSize(ImVec2(400, 0), ImGuiCond_FirstUseEver);
     ImGui::Begin("NightRiderz Radio", &g_showMenu,
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse);
 
-    // En-tête avec les contrôles
+    // Header
     ImGui::BeginChild("Header", ImVec2(0, 30), true);
     ImGui::Text("Controls:"); ImGui::SameLine();
     ImGui::TextColored(ImVec4(1, 1, 1, 0.6f), "F7 - Toggle Menu  |  F8 - Play/Pause");
     ImGui::EndChild();
     ImGui::Spacing();
 
-    // Section de la station
+    // Station section
     ImGui::BeginChild("Station", ImVec2(0, 120), true);
 
     if (ImGui::BeginCombo("##StationSelector", g_currentStation.name.c_str())) {
@@ -492,11 +491,11 @@ void RenderInterface() {
             if (ImGui::Selectable(g_radioStations[i].name.c_str(), is_selected)) {
                 bool wasPlaying = g_isPlaying;
                 if (wasPlaying) {
-                    ToggleRadio(); // Stop current
+                    ToggleRadio();
                 }
                 g_currentStation = g_radioStations[i];
                 if (wasPlaying) {
-                    ToggleRadio(); // Start new
+                    ToggleRadio();
                 }
                 SaveSettings();
             }
@@ -507,7 +506,7 @@ void RenderInterface() {
         ImGui::EndCombo();
     }
 
-    // Layout horizontal pour la couverture et les infos
+    // Cover art and info layout
     if (g_coverTexture) {
         float displayHeight = 90.0f;
         float aspectRatio = static_cast<float>(g_coverTextureWidth) / g_coverTextureHeight;
@@ -530,30 +529,23 @@ void RenderInterface() {
 
     ImGui::EndChild();
     ImGui::Spacing();
-
-    // Section des contrôles
+    // Controls section
     ImGui::BeginChild("Controls", ImVec2(0, 100), true);
 
-    // Bouton Play/Stop stylisé
     ImVec2 buttonSize(80, 30);
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - buttonSize.x) * 0.5f);
     if (ImGui::Button(g_isPlaying ? "Stop" : "Play", buttonSize)) {
         ToggleRadio();
     }
 
-    // Status stylisé
     ImVec4 statusColor = g_isPlaying ? ImVec4(0.2f, 0.8f, 0.2f, 1.0f) : ImVec4(0.8f, 0.2f, 0.2f, 1.0f);
     ImGui::SetCursorPosX((ImGui::GetWindowWidth() - ImGui::CalcTextSize(g_isPlaying ? "Playing" : "Stopped").x) * 0.5f);
     ImGui::TextColored(statusColor, g_isPlaying ? "Playing" : "Stopped");
 
-    // Slider de volume avec label
     ImGui::Spacing();
     ImGui::PushItemWidth(ImGui::GetWindowWidth() - 30);
-
-    // Convertir le volume de 0-1 en 0-100 pour l'affichage
     float displayVolume = g_volume * 100.0f;
     if (ImGui::SliderFloat("##Volume", &displayVolume, 0.0f, 100.0f, "Volume: %.0f%%")) {
-        // Reconvertir de 0-100 en 0-1 pour BASS
         g_volume = displayVolume / 100.0f;
         if (g_radioStream != 0) {
             BASS_ChannelSetAttribute_Fn(g_radioStream, BASS_ATTRIB_VOL, g_volume);
@@ -564,7 +556,7 @@ void RenderInterface() {
 
     ImGui::EndChild();
 
-    // Messages d'état
+    // Status messages
     if (strlen(g_statusMessage) > 0 && g_messageTimer > 0) {
         ImGui::Spacing();
         ImGui::BeginChild("Status", ImVec2(0, 30), true);
@@ -575,7 +567,6 @@ void RenderInterface() {
 
     ImGui::End();
 
-    // Pop des styles
     ImGui::PopStyleVar(5);
     ImGui::PopStyleColor(10);
 }
@@ -583,39 +574,34 @@ void RenderInterface() {
 void RenderSongTitle() {
     if (!g_isPlaying || g_currentStation.currentSong.empty()) return;
 
-    // Mettre à jour les animations
     float deltaTime = ImGui::GetIO().DeltaTime;
 
     if (g_shouldDisplayTitle) {
-        // Animation d'apparition
+        // Fade in animation
         if (g_titleAlpha < 1.0f) {
             g_titleAlpha += deltaTime / FADE_IN_TIME;
             if (g_titleAlpha > 1.0f) g_titleAlpha = 1.0f;
-
             g_titleYOffset += deltaTime * (0.0f - g_titleYOffset) * 5.0f;
         }
 
-        // Mise à jour du timer
         g_titleDisplayTimer -= deltaTime;
         if (g_titleDisplayTimer <= 0.0f) {
             g_shouldDisplayTitle = false;
         }
     }
     else {
-        // Animation de disparition
+        // Fade out animation
         g_titleAlpha -= deltaTime / FADE_OUT_TIME;
         if (g_titleAlpha <= 0.0f) {
             g_titleAlpha = 0.0f;
             g_titleYOffset = -50.0f;
             return;
         }
-
         g_titleYOffset -= deltaTime * 50.0f;
     }
 
     if (g_titleAlpha <= 0.0f) return;
 
-    // Window avec le titre complet
     ImGui::SetNextWindowPos(ImVec2(10, 10 + g_titleYOffset));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10, 5));
@@ -628,12 +614,11 @@ void RenderSongTitle() {
         ImGuiWindowFlags_NoScrollbar |
         ImGuiWindowFlags_AlwaysAutoResize);
 
-    // "Now Playing" text
     ImGui::SetWindowFontScale(1.0f);
     ImGui::TextColored(ImVec4(1, 1, 1, g_titleAlpha), "NOW PLAYING");
     ImGui::SetWindowFontScale(1.0f);
 
-    // Song title with shadow
+    // Draw song title with shadow effect
     ImVec2 pos = ImGui::GetCursorPos();
     ImGui::SetCursorPos(ImVec2(pos.x + 1, pos.y + 1));
     ImGui::TextColored(ImVec4(0, 0, 0, g_titleAlpha), "%s", g_currentStation.currentSong.c_str());
@@ -646,7 +631,6 @@ void RenderSongTitle() {
     ImGui::PopStyleVar(2);
 }
 
-// Thread pour la mise à jour des informations radio
 DWORD WINAPI RadioUpdateThread(LPVOID lpParam) {
     while (true) {
         if (g_isPlaying) {
@@ -657,11 +641,9 @@ DWORD WINAPI RadioUpdateThread(LPVOID lpParam) {
     return 0;
 }
 
-// Thread pour gérer les touches
 DWORD WINAPI KeyboardThread(LPVOID lpParam) {
     while (true) {
-        SHORT f7State = GetAsyncKeyState(VK_F7);
-        if (f7State & 0x8000) {
+        if (GetAsyncKeyState(VK_F7) & 0x8000) {
             g_showMenu = !g_showMenu;
             Sleep(200);
         }
@@ -676,17 +658,15 @@ DWORD WINAPI KeyboardThread(LPVOID lpParam) {
     return 0;
 }
 
-// Function hook EndScene
 HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
     static bool init = false;
     if (!init) {
-        HWND gameWindow = GetForegroundWindow();
+        HWND gameWindow = GetGameWindow();
         ImGui::CreateContext();
         ImGui_ImplWin32_Init(gameWindow);
         ImGui_ImplDX9_Init(pDevice);
 
         oWndProc = (WNDPROC)SetWindowLongPtr(gameWindow, GWLP_WNDPROC, (LONG_PTR)hkWndProc);
-
         init = true;
     }
 
@@ -694,12 +674,10 @@ HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
 
-    // Dessiner l'interface principale si le menu est ouvert
     if (g_showMenu) {
         RenderInterface();
     }
 
-    // Toujours dessiner le titre de la chanson si la radio est active
     RenderSongTitle();
 
     ImGui::EndFrame();
@@ -709,24 +687,23 @@ HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
     return oEndScene(pDevice);
 }
 
-// Thread d'initialisation
-DWORD WINAPI InitBassThread(LPVOID lpParam) {
-    Sleep(15000);
-    while (TheGameFlowManager != 6) {
-        Sleep(1000);
-    }
+DWORD WINAPI InitializeRadio(LPVOID lpParam) {
+    Sleep(30000); // Allow game to initialize
+    //while (TheGameFlowManager != 6) {
+    //    Sleep(1000);
+    //}
 
     char asiPath[MAX_PATH];
     GetModuleFileNameA((HMODULE)lpParam, asiPath, MAX_PATH);
     PathRemoveFileSpecA(asiPath);
 
-    // Charger MinHook
+    // Load MinHook
     char minhookPath[MAX_PATH];
     sprintf_s(minhookPath, "%s\\Radio\\MinHook.dll", asiPath);
     HMODULE hMinHook = LoadLibraryA(minhookPath);
     if (!hMinHook) return FALSE;
 
-    // Charger les fonctions MinHook
+    // Load MinHook functions
     MH_Initialize_Fn = (MH_Initialize_PTR)GetProcAddress(hMinHook, "MH_Initialize");
     MH_CreateHook_Fn = (MH_CreateHook_PTR)GetProcAddress(hMinHook, "MH_CreateHook");
     MH_EnableHook_Fn = (MH_EnableHook_PTR)GetProcAddress(hMinHook, "MH_EnableHook");
@@ -738,81 +715,70 @@ DWORD WINAPI InitBassThread(LPVOID lpParam) {
 
     if (MH_Initialize_Fn() != MH_OK) return FALSE;
 
-    // Hook D3D9 EndScene
-    void* d3d9Device[119];
-    memset(d3d9Device, 0, sizeof(d3d9Device));
+    // Get D3D device directly
+    LPDIRECT3DDEVICE9 d3dDevice = GetGameD3DDevice();
+    if (!d3dDevice) return FALSE;
 
-    Sleep(5000);
-    for (int attempt = 0; attempt < 3; attempt++) {
-        if (!GetD3D9Device(d3d9Device, sizeof(d3d9Device))) {
-            Sleep(2000);
-            continue;
-        }
+    // Get vtable and hook EndScene
+    void** vtable = *(void***)d3dDevice;
+    void* endSceneAddr = vtable[42];
 
-        void* endSceneAddr = d3d9Device[42];
-        if (endSceneAddr == NULL) continue;
+    DWORD oldProtect;
+    if (!VirtualProtect(endSceneAddr, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect))
+        return FALSE;
 
-        DWORD oldProtect;
-        if (!VirtualProtect(endSceneAddr, sizeof(void*), PAGE_EXECUTE_READWRITE, &oldProtect)) {
-            continue;
-        }
-
-        Sleep(1000);
-
-        if (MH_CreateHook_Fn(endSceneAddr, &hkEndScene, reinterpret_cast<LPVOID*>(&oEndScene)) != MH_OK) {
-            VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
-            continue;
-        }
-
-        if (MH_EnableHook_Fn(endSceneAddr) != MH_OK) {
-            VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
-            continue;
-        }
-
+    if (MH_CreateHook_Fn(endSceneAddr, &hkEndScene, reinterpret_cast<LPVOID*>(&oEndScene)) != MH_OK) {
         VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
-
-        // Charger BASS
-        char bassPath[MAX_PATH];
-        sprintf_s(bassPath, "%s\\Radio\\bass.dll", asiPath);
-
-        g_hBassDll = LoadLibraryA(bassPath);
-        if (!g_hBassDll) return FALSE;
-
-        // Charger les fonctions BASS
-        BASS_Init_Fn = (BASS_Init_PTR)GetProcAddress(g_hBassDll, "BASS_Init");
-        BASS_Free_Fn = (BASS_Free_PTR)GetProcAddress(g_hBassDll, "BASS_Free");
-        BASS_ErrorGetCode_Fn = (BASS_ErrorGetCode_PTR)GetProcAddress(g_hBassDll, "BASS_ErrorGetCode");
-        BASS_StreamCreateURL_Fn = (BASS_StreamCreateURL_PTR)GetProcAddress(g_hBassDll, "BASS_StreamCreateURL");
-        BASS_ChannelPlay_Fn = (BASS_ChannelPlay_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelPlay");
-        BASS_ChannelStop_Fn = (BASS_ChannelStop_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelStop");
-        BASS_ChannelSetAttribute_Fn = (BASS_ChannelSetAttribute_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelSetAttribute");
-        BASS_StreamFree_Fn = (BASS_StreamFree_PTR)GetProcAddress(g_hBassDll, "BASS_StreamFree");
-
-        if (!BASS_Init_Fn || !BASS_Free_Fn || !BASS_ErrorGetCode_Fn || !BASS_StreamCreateURL_Fn ||
-            !BASS_ChannelPlay_Fn || !BASS_ChannelStop_Fn || !BASS_ChannelSetAttribute_Fn || !BASS_StreamFree_Fn) {
-            return FALSE;
-        }
-
-        // Initialiser BASS
-        if (!BASS_Init_Fn(-1, 44100, 0, GetForegroundWindow(), NULL)) {
-            return FALSE;
-        }
-
-        // Charger les paramètres
-        LoadSettings();
-
-        // Créer les threads
-        CreateThread(NULL, 0, KeyboardThread, NULL, 0, NULL);
-        CreateThread(NULL, 0, RadioUpdateThread, NULL, 0, NULL);
-
-        return TRUE;
+        return FALSE;
     }
 
-    MH_Uninitialize_Fn();
-    return FALSE;
+    if (MH_EnableHook_Fn(endSceneAddr) != MH_OK) {
+        VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
+        return FALSE;
+    }
+
+    VirtualProtect(endSceneAddr, sizeof(void*), oldProtect, &oldProtect);
+
+    // Load BASS
+    char bassPath[MAX_PATH];
+    sprintf_s(bassPath, "%s\\Radio\\bass.dll", asiPath);
+    g_hBassDll = LoadLibraryA(bassPath);
+    if (!g_hBassDll) return FALSE;
+
+    // Load BASS functions
+    BASS_Init_Fn = (BASS_Init_PTR)GetProcAddress(g_hBassDll, "BASS_Init");
+    BASS_Free_Fn = (BASS_Free_PTR)GetProcAddress(g_hBassDll, "BASS_Free");
+    BASS_ErrorGetCode_Fn = (BASS_ErrorGetCode_PTR)GetProcAddress(g_hBassDll, "BASS_ErrorGetCode");
+    BASS_StreamCreateURL_Fn = (BASS_StreamCreateURL_PTR)GetProcAddress(g_hBassDll, "BASS_StreamCreateURL");
+    BASS_ChannelPlay_Fn = (BASS_ChannelPlay_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelPlay");
+    BASS_ChannelStop_Fn = (BASS_ChannelStop_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelStop");
+    BASS_ChannelSetAttribute_Fn = (BASS_ChannelSetAttribute_PTR)GetProcAddress(g_hBassDll, "BASS_ChannelSetAttribute");
+    BASS_StreamFree_Fn = (BASS_StreamFree_PTR)GetProcAddress(g_hBassDll, "BASS_StreamFree");
+
+    if (!BASS_Init_Fn || !BASS_Free_Fn || !BASS_ErrorGetCode_Fn || !BASS_StreamCreateURL_Fn ||
+        !BASS_ChannelPlay_Fn || !BASS_ChannelStop_Fn || !BASS_ChannelSetAttribute_Fn || !BASS_StreamFree_Fn)
+        return FALSE;
+
+    // Initialize BASS with proper window handle
+    if (!BASS_Init_Fn(-1, 44100, 0, GetGameWindow(), NULL))
+        return FALSE;
+
+    LoadSettings();
+
+    // Create worker threads with proper cleanup
+    HANDLE hKeyboardThread = CreateThread(NULL, 0, KeyboardThread, NULL, 0, NULL);
+    HANDLE hRadioThread = CreateThread(NULL, 0, RadioUpdateThread, NULL, 0, NULL);
+
+    if (!hKeyboardThread || !hRadioThread) {
+        if (hKeyboardThread) CloseHandle(hKeyboardThread);
+        if (hRadioThread) CloseHandle(hRadioThread);
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
-void Update(LPVOID) {
+void Update() {
     static bool lastFocusState = false;
 
     while (true) {
@@ -821,40 +787,47 @@ void Update(LPVOID) {
         IsLoading = (*(bool*)(gBase + _LoadState));
         TheGameFlowManager = (*(int*)(gBase + _GameState));
 
-        // Gérer la lecture de la radio en fonction du focus
+        // Handle window focus changes
         if (g_radioStream != 0 && g_isPlaying) {
             if (IsOnFocus && !lastFocusState) {
-                // La fenêtre vient d'obtenir le focus, reprendre la lecture
                 BASS_ChannelPlay_Fn(g_radioStream, FALSE);
             }
             else if (!IsOnFocus && lastFocusState) {
-                // La fenêtre vient de perdre le focus, mettre en pause
                 BASS_ChannelStop_Fn(g_radioStream);
             }
         }
         lastFocusState = IsOnFocus;
 
-        Sleep(17);
+        Sleep(17); // ~60 FPS
     }
 }
 
-// Point d'entrée DLL
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
-    switch (reason) {
-    case DLL_PROCESS_ATTACH: {
+    int TheGameFlowManager = 0;
+    if (reason == DLL_PROCESS_ATTACH) {
+        DisableThreadLibraryCalls(hModule);
+
         gBase = (uintptr_t)GetModuleHandleA(NULL);
         IMAGE_DOS_HEADER* dos = (IMAGE_DOS_HEADER*)(gBase);
         IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)(gBase + dos->e_lfanew);
+
         if ((gBase + nt->OptionalHeader.AddressOfEntryPoint + (0x400000 - gBase)) == 0x97CEFC) {
-            CreateThread(NULL, 0, InitBassThread, hModule, 0, NULL);
-            CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&Update, NULL, 0, NULL);
-            break;
+            HANDLE hThread = CreateThread(NULL, 0, [](LPVOID param) -> DWORD {
+                Sleep(100);
+                InitializeRadio(param);
+                Update();
+                return 0;
+                }, hModule, 0, NULL);
+
+            if (hThread) {
+                CloseHandle(hThread);
+                return TRUE;
+            }
         }
-        else {
-            return FALSE;
-        }
+        return FALSE;
     }
-    case DLL_PROCESS_DETACH: {
+    else if (reason == DLL_PROCESS_DETACH) {
+        // Cleanup resources
         if (g_radioStream != 0 && BASS_ChannelStop_Fn) {
             BASS_ChannelStop_Fn(g_radioStream);
             if (BASS_StreamFree_Fn) {
@@ -877,8 +850,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
             g_coverTexture->Release();
             g_coverTexture = nullptr;
         }
-        break;
-    }
     }
     return TRUE;
 }
