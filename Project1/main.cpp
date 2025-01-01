@@ -812,10 +812,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved) {
         IMAGE_NT_HEADERS* nt = (IMAGE_NT_HEADERS*)(gBase + dos->e_lfanew);
 
         if ((gBase + nt->OptionalHeader.AddressOfEntryPoint + (0x400000 - gBase)) == 0x97CEFC) {
+            CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&Update, NULL, 0, NULL);
             HANDLE hThread = CreateThread(NULL, 0, [](LPVOID param) -> DWORD {
                 Sleep(100);
                 InitializeRadio(param);
-                Update();
                 return 0;
                 }, hModule, 0, NULL);
 
