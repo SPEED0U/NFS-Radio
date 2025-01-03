@@ -690,7 +690,7 @@ HRESULT APIENTRY hkEndScene(LPDIRECT3DDEVICE9 pDevice) {
 DWORD WINAPI InitializeRadio(LPVOID lpParam) {
     //Sleep(30000); // Allow game to initialize
     //Wait until frontend state and garage state
-    while (TheGameFlowManager != 3 || InGarage == false) {
+    while (TheGameFlowManager != 6) {
         Sleep(1000);
     }
 
